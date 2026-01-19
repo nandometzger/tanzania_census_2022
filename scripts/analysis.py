@@ -15,28 +15,23 @@ def perform_analysis(gpkg_path, output_dir):
     if gdf.crs is None:
         gdf.set_crs(epsg=4326, inplace=True)
     
-    # Ensure area and density are present (calculated in finalize_mapping now, but let's be safe)
-    if 'area_sqkm' not in gdf.columns or 'density' not in gdf.columns:
-        print("Recalculating spatial metrics...")
-        gdf_projected = gdf.to_crs(epsg=32737)
-        gdf['area_sqkm'] = gdf_projected.area / 10**6
-        gdf['density'] = gdf['Total_Pop'] / gdf['area_sqkm']
-    
     # Filter for plotting: Wards with population data
     gdf_pop = gdf[gdf['Total_Pop'].notnull()].copy()
     
-    # Clip density at 1.0 for visualization (avoids near-zero values washing out colors)
-    # The user requested 'min at 1'
-    gdf_pop['viz_density'] = gdf_pop['density'].clip(lower=1.0)
+    # Ensure density is positive for Log plots
+    gdf_pop['density_plot'] = gdf_pop['density'].clip(lower=1.0)
     
-    # 1. Main Population Density Map
-    print("Generating main population density map...")
+    # 1. Main Population Density Map - Professional Logarithmic Scale
+    print("Generating main population density map (Log Scale)...")
     fig, ax = plt.subplots(1, 1, figsize=(15, 12))
-    ax.set_facecolor('#fdfdfd') # Clean background
     
-    # Using FisherJenks for better class distribution than pure quantiles
-    gdf_pop.plot(column='viz_density', ax=ax, legend=True, 
-                scheme='FisherJenks', k=9, cmap='YlOrRd',
+    # Using UserDefined logarithmic breaks for a clean, readable legend
+    # This avoids the "everything in one bin" problem of Fisher-Jenks/Quantiles on skewed data
+    log_breaks = [10, 50, 200, 500, 1000, 2500, 5000, 15000]
+    
+    gdf_pop.plot(column='density_plot', ax=ax, legend=True, 
+                scheme='UserDefined', classification_kwds={'bins': log_breaks},
+                cmap='YlOrRd',
                 legend_kwds={'title': "People per Sq Km", 'loc': 'lower left', 'fmt': "{:.0f}"})
     
     ax.set_title("Tanzania 2022 Census: Population Density by Ward", fontsize=18, fontweight='bold', pad=20)
@@ -44,55 +39,53 @@ def perform_analysis(gpkg_path, output_dir):
     plt.savefig(os.path.join(output_dir, "tza_pop_density_map.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # 2. Zoom - Dar es Salaam
+    # 2. Zoom - Dar es Salaam (High Density Focus)
     print("Generating Dar es Salaam zoom map...")
     dar = gdf_pop[gdf_pop['reg_name'].str.contains('Dar es Salaam', case=False, na=False)].copy()
     if not dar.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-        dar.plot(column='viz_density', ax=ax, legend=True, scheme='FisherJenks', k=9, cmap='YlOrRd',
+        # Custom breaks for Dar to show urban variation (500 to 40000)
+        dar_breaks = [1000, 2500, 5000, 10000, 15000, 20000, 25000, 30000]
+        dar.plot(column='density_plot', ax=ax, legend=True, 
+                scheme='UserDefined', classification_kwds={'bins': dar_breaks},
+                cmap='YlOrRd',
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
         ax.set_title("Dar es Salaam: Population Density (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
         plt.savefig(os.path.join(output_dir, "zoom_dar_density.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
-    # 3. Zoom - Zanzibar (Unguja & Pemba)
+    # 3. Zoom - Zanzibar (Medium-High Density Focus)
     print("Generating Zanzibar zoom map...")
     znz = gdf_pop[gdf_pop['reg_name'].str.contains('Unguja|Pemba|Zanzibar', case=False, na=False)].copy()
     if not znz.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-        # Use a more sensitive scale for Zanzibar if needed, but keeping FisherJenks for consistency
-        znz.plot(column='viz_density', ax=ax, legend=True, scheme='FisherJenks', k=9, cmap='YlOrRd',
+        # Custom breaks for Zanzibar (100 to 5000)
+        znz_breaks = [100, 250, 500, 750, 1000, 1500, 2500, 4000]
+        znz.plot(column='density_plot', ax=ax, legend=True, 
+                scheme='UserDefined', classification_kwds={'bins': znz_breaks},
+                cmap='YlOrRd',
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
         ax.set_title("Zanzibar: Population Density (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
         plt.savefig(os.path.join(output_dir, "zoom_zanzibar_density.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
-    # 4. Modern Histogram (Log x-axis, Linear y-axis)
+    # 4. Modern Histogram (Log x-axis)
     print("Generating modern ward size histogram...")
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Filter out 0 area and apply user request: min at 1
     areas = gdf[gdf['area_sqkm'] >= 1.0]['area_sqkm']
-    
-    # Create log bins starting from 1
     log_bins = np.logspace(np.log10(1.0), np.log10(areas.max()), 50)
-    
     ax.hist(areas, bins=log_bins, color='#3498db', edgecolor='white', alpha=0.8)
     ax.set_xscale('log')
-    ax.set_xlim(left=1.0) # Explicitly set x-axis floor at 1.0
-    
+    ax.set_xlim(left=1.0)
     ax.set_title("Distribution of ward areas in Tanzania (≥ 1 km²)", fontsize=16, fontweight='bold', pad=20)
     ax.set_xlabel("Area (sq km, Log Scale)", fontsize=12)
-    ax.set_ylabel("Frequency (Number of Wards)", fontsize=12)
-    
+    ax.set_ylabel("Frequency", fontsize=12)
     ax.grid(True, which="both", ls="-", alpha=0.2)
-    
     median_val = areas.median()
     ax.axvline(median_val, color='#e74c3c', linestyle='--', label=f'Median: {median_val:.1f} km²')
     ax.legend()
-
     plt.savefig(os.path.join(output_dir, "tza_ward_size_histogram.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -103,19 +96,9 @@ def perform_analysis(gpkg_path, output_dir):
         f.write("Tanzania 2022 Ward Spatial Statistics\n")
         f.write("======================================\n\n")
         f.write(f"Total polygons analyzed: {len(gdf)}\n")
-        f.write(f"Mean Ward Area: {gdf['area_sqkm'].mean():.2f} sq km\n")
-        f.write(f"Median Ward Area: {gdf['area_sqkm'].median():.2f} sq km\n")
         f.write(f"Total Land Area (mapped): {gdf['area_sqkm'].sum():.2f} sq km\n\n")
-        
         f.write("Population Density Statistics (for matched wards):\n")
         f.write(gdf_pop['density'].describe().to_string())
-        
-        max_row = gdf_pop.loc[gdf_pop['density'].idxmax()]
-        f.write("\n\nMaximum Density Ward:\n")
-        f.write(f"Name: {max_row['ward_name']} ({max_row['reg_name']})\n")
-        f.write(f"Population: {max_row['Total_Pop']}\n")
-        f.write(f"Density: {max_row['density']:.2f} people/sq km\n")
-    
     print(f"Stats updated at {stats_path}")
 
 if __name__ == "__main__":

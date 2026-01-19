@@ -2,8 +2,6 @@ Tanzania 2022 Ward Spatial Statistics
 ======================================
 
 Total polygons analyzed: 4344
-Mean Ward Area: 204.65 sq km
-Median Ward Area: 83.44 sq km
 Total Land Area (mapped): 889006.53 sq km
 
 Population Density Statistics (for matched wards):
@@ -15,8 +13,3 @@ min          0.223372
 50%        137.331935
 75%        400.296100
 max      37222.921291
-
-Maximum Density Ward:
-Name: Tandale (Dar es Salaam)
-Population: 43374.0
-Density: 37222.92 people/sq km
