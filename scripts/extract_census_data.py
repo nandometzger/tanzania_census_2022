@@ -86,11 +86,12 @@ def extract_census(pdf_path, start_page=50):
                 
             for table in tables:
                 header_row = [str(c) for c in table[0] if c]
-                # A ward table usually has "Ward" in its header, summary tables have "Council"
-                is_ward_table = any("Ward" in h for h in header_row)
+                # A ward table usually has "Ward" or "Shehia" in its header, summary tables have "Council"
+                # (Zanzibar uses "Shehia" instead of "Ward")
+                is_granular_table = any("Ward" in h or "Shehia" in h for h in header_row)
                 
-                # If we are on a summary page or it's clearly not a ward table, be extremely careful
-                if is_summary_page and not is_ward_table:
+                # If we are on a summary page or it's clearly not a ward/shehia table, be extremely careful
+                if is_summary_page and not is_granular_table:
                     continue
 
                 for row in table:
@@ -113,7 +114,7 @@ def extract_census(pdf_path, start_page=50):
                         current_council = name
                         # We don't skip the row here if it's a ward table, 
                         # but we must skip it if it's acting as a header
-                        if not is_ward_table: continue
+                        if not is_granular_table: continue
 
                     # Extract numbers
                     numeric_cells = []

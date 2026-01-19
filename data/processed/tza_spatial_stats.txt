@@ -7,13 +7,13 @@ Median Ward Area: 83.44 sq km
 Total Land Area (mapped): 889006.53 sq km
 
 Population Density Statistics (for matched wards):
-count     4171.000000
-mean      1204.267975
-std       3531.807382
+count     4275.000000
+mean      1205.918624
+std       3503.844331
 min          0.223372
-25%         61.915117
-50%        133.140993
-75%        368.807087
+25%         63.474151
+50%        137.331935
+75%        400.296100
 max      37222.921291
 
 Maximum Density Ward:
