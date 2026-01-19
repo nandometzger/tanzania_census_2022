@@ -23,35 +23,42 @@ This project provides a comprehensive, granular (Ward-level) population dataset 
 
 ### Phase 2: PDF Data Extraction
 *   **Process**: Programmatic extraction from pages 54--280 using `pdfplumber`. 
-*   **Logic**: Context-aware parsing that tracks Region and Council state changes while identifying granular Ward-level population counts.
+*   **Logic**: Context-aware parsing that tracks Region and Council state changes while identifying granular Ward-level (Mainland) and **Shehia-level (Zanzibar)** population counts.
 
 ### Phase 3: Data Cleaning & Normalization
 *   **Standardization**: Names normalized to uppercase and stripped of administrative suffixes (e.g., "District Council") to enable reliable joining.
-*   **Filtering**: Systematic removal of summary/aggregate rows to prevent data inflation.
+*   **Filtering**: Systematic removal of summary/aggregate rows (District/Council totals) to prevent population inflation.
 
 ### Phase 4: Geospatial Mapping
 *   **Strategy**: Multistage join (Full context -> Fallback) with manual overrides for specific naming variances (e.g., `Nghaheleze` → `Ngaheleze`).
-*   **Match Rate**: **98.73%** successful mapping across the NBS ward boundary layer.
-
-### Data Quality & Correction (The "Tunduma Outlier")
-During initial runs, a density outlier was identified in **Tunduma Ward** (~568,000 people/sq km).
-*   **Root Cause**: The PDF report contains summary tables (Table X.0) that list total populations for entire Town/District councils. The parser was incorrectly mapping these large aggregate totals to the specific ward polygon sharing the same name (e.g., Tunduma Council vs. Tunduma Ward).
-*   **The Fix**:
-    1.  **Strict Keyword Filtering**: The extraction script now explicitly ignores any rows containing `Town`, `City`, `District`, `Council`, or `Total` in the name column.
-    2.  **Page Schema Awareness**: Added logic to distinguish between summary pages (Table X.0) and granular ward pages (Table X.1+).
-*   **Result**: The corrected maximum density is **~37,222 people/sq km** (Tandale Ward, Dar es Salaam), which aligns with regional urban benchmarks.
+*   **Match Rate**: **98.41%** overall successful mapping across the NBS ward boundary layer.
+    *   **Zanzibar Match Rate**: **98.1%** (achieved by correctly parsing *Shehia* unit types).
 
 ---
 
-## 3. Spatial Analysis & Results
+## 3. Data Quality & Corrections
+
+### The "Tunduma Outlier"
+During initial runs, a density outlier was identified in **Tunduma Ward** (~568,000 people/sq km).
+*   **Root Cause**: The parser originally mapped Council-level summary totals to individual Ward polygons sharing the same name.
+*   **Fix**: Implemented strict keyword filtering and page-schema detection in `extract_census_data.py`.
+
+### The "Zanzibar Data Gap"
+Initial maps showed white areas (missing data) in Unguja and Pemba.
+*   **Root Cause**: Zanzibar administrative units are officially called **Shehia**, not *Wards*. The initial extraction script only looked for "Ward" labels.
+*   **Fix**: Updated the parser to recognize both "Ward" and "Shehia" headers/units, increasing Zanzibar coverage from ~59% to over 98%.
+
+---
+
+## 4. Spatial Analysis & Results
 
 Basic spatial analysis was performed using **UTM Zone 37S (EPSG:32737)** for area calculations.
 
 ### Key Metrics:
-*   **Total Wards Analyzed**: 4,344
+*   **Total Polygons Analyzed**: 4,344
+*   **Matched Records**: 4,275
 *   **Mean Ward Area**: 204.65 sq km
-*   **Median Ward Area**: 83.44 sq km
-*   **Max Population Density**: ~37,000 people/sq km (Found in Tandale Ward, Dar es Salaam).
+*   **Max Population Density**: ~37,222 people/sq km (Tandale Ward, Dar es Salaam).
 *   **Median Population Density**: 138 people/sq km.
 
 ### Visual Analysis
@@ -64,7 +71,6 @@ The histogram below showing the distribution of ward areas (log-scaled x-axis) h
 #### International Comparison: Tanzania vs. Rwanda
 To contextualize the scale of Tanzania's administrative units, we compared Ward sizes with **Rwanda's Sectors (Imirenge)**. 
 - While Rwanda is significantly smaller, its administrative units (Sectors) show a much narrower distribution, centered around ~60 km².
-- Tanzania's Wards exhibit a vast range, reflecting the geographical diversity from ultra-dense urban centers to massive wilderness areas.
 
 ![TZA vs RWA Comparison](data/processed/tza_rwa_comparison_histogram.png)
 
@@ -77,14 +83,12 @@ Detailed views of high-density areas:
 
 ---
 
-## 4. Final Data Product & Usage
+## 5. Final Data Product & Usage
 
 *   **File**: `data/processed/TZA_2022_Census_Final_Mapped.gpkg` (GeoPackage)
 *   **Attributes**: Original NBS boundary fields + `Total_Pop`, `Male_Pop`, `Female_Pop`, `area_sqkm`, `density`.
 
 ### How to Reproduce
-
-Ensure you have `pandas`, `geopandas`, `pdfplumber`, `pyogrio`, and `requests` installed.
 
 ```powershell
 # 1. Download Census PDF
@@ -94,7 +98,6 @@ python scripts/download_census.py
 python scripts/extract_census_data.py
 
 # 3. Join with Shapefile
-# (Ensure raw shapefile is extracted to data/raw/)
 python scripts/finalize_mapping.py
 
 # 4. Generate Analysis & Plots
