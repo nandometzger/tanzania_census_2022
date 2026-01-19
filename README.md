@@ -61,6 +61,13 @@ The histogram below showing the distribution of ward areas (log-scaled x-axis) h
 
 ![Ward Size Distribution](data/processed/tza_ward_size_histogram.png)
 
+#### International Comparison: Tanzania vs. Rwanda
+To contextualize the scale of Tanzania's administrative units, we compared Ward sizes with **Rwanda's Sectors (Imirenge)**. 
+- While Rwanda is significantly smaller, its administrative units (Sectors) show a much narrower distribution, centered around ~60 km².
+- Tanzania's Wards exhibit a vast range, reflecting the geographical diversity from ultra-dense urban centers to massive wilderness areas.
+
+![TZA vs RWA Comparison](data/processed/tza_rwa_comparison_histogram.png)
+
 #### Regional Density Zooms
 Detailed views of high-density areas:
 
