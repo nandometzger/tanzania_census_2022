@@ -86,7 +86,8 @@ Detailed views of high-density areas:
 ## 5. Final Data Product & Usage
 
 *   **File**: `data/processed/TZA_2022_Census_Final_Mapped.gpkg` (GeoPackage)
-*   **Attributes**: Original NBS boundary fields + `Total_Pop`, `Male_Pop`, `Female_Pop`, `area_sqkm`, `density`.
+*   **Attributes**: Original NBS boundary fields + **Total_Pop**, **Male_Pop**, **Female_Pop**, `area_sqkm`, `density`.
+*   **Gender Disaggregation**: The dataset includes full male and female population counts for every ward/shehia, enabling sex-ratio analysis and gender-focused spatial planning.
 
 ### How to Reproduce
 

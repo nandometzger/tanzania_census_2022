@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+from matplotlib.colors import LogNorm
 
 # Set a modern style
 plt.style.use('ggplot')
@@ -14,21 +15,30 @@ def perform_analysis(gpkg_path, output_dir):
     if gdf.crs is None:
         gdf.set_crs(epsg=4326, inplace=True)
     
-    # Calculate Area using a suitable local projection
-    print("Calculating areas (UTM 37S)...")
-    gdf_projected = gdf.to_crs(epsg=32737)
-    gdf['area_sqkm'] = gdf_projected.area / 10**6
+    # Ensure area and density are present (calculated in finalize_mapping now, but let's be safe)
+    if 'area_sqkm' not in gdf.columns or 'density' not in gdf.columns:
+        print("Recalculating spatial metrics...")
+        gdf_projected = gdf.to_crs(epsg=32737)
+        gdf['area_sqkm'] = gdf_projected.area / 10**6
+        gdf['density'] = gdf['Total_Pop'] / gdf['area_sqkm']
     
-    print("Calculating population density...")
+    # Filter for plotting: Wards with population data
     gdf_pop = gdf[gdf['Total_Pop'].notnull()].copy()
-    gdf_pop['density'] = gdf_pop['Total_Pop'] / gdf_pop['area_sqkm']
     
-    # 1. Main Population Density Map (9 classes)
+    # Clip density at 1.0 for visualization (avoids near-zero values washing out colors)
+    # The user requested 'min at 1'
+    gdf_pop['viz_density'] = gdf_pop['density'].clip(lower=1.0)
+    
+    # 1. Main Population Density Map
     print("Generating main population density map...")
     fig, ax = plt.subplots(1, 1, figsize=(15, 12))
-    gdf_pop.plot(column='density', ax=ax, legend=True, 
-                scheme='quantiles', k=9, cmap='YlOrRd',
+    ax.set_facecolor('#fdfdfd') # Clean background
+    
+    # Using FisherJenks for better class distribution than pure quantiles
+    gdf_pop.plot(column='viz_density', ax=ax, legend=True, 
+                scheme='FisherJenks', k=9, cmap='YlOrRd',
                 legend_kwds={'title': "People per Sq Km", 'loc': 'lower left', 'fmt': "{:.0f}"})
+    
     ax.set_title("Tanzania 2022 Census: Population Density by Ward", fontsize=18, fontweight='bold', pad=20)
     ax.axis('off')
     plt.savefig(os.path.join(output_dir, "tza_pop_density_map.png"), dpi=300, bbox_inches='tight')
@@ -39,7 +49,7 @@ def perform_analysis(gpkg_path, output_dir):
     dar = gdf_pop[gdf_pop['reg_name'].str.contains('Dar es Salaam', case=False, na=False)].copy()
     if not dar.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-        dar.plot(column='density', ax=ax, legend=True, scheme='quantiles', k=9, cmap='YlOrRd',
+        dar.plot(column='viz_density', ax=ax, legend=True, scheme='FisherJenks', k=9, cmap='YlOrRd',
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
         ax.set_title("Dar es Salaam: Population Density (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
@@ -48,11 +58,11 @@ def perform_analysis(gpkg_path, output_dir):
 
     # 3. Zoom - Zanzibar (Unguja & Pemba)
     print("Generating Zanzibar zoom map...")
-    # Regions containing 'Unguja' or 'Pemba'
     znz = gdf_pop[gdf_pop['reg_name'].str.contains('Unguja|Pemba|Zanzibar', case=False, na=False)].copy()
     if not znz.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-        znz.plot(column='density', ax=ax, legend=True, scheme='quantiles', k=9, cmap='YlOrRd',
+        # Use a more sensitive scale for Zanzibar if needed, but keeping FisherJenks for consistency
+        znz.plot(column='viz_density', ax=ax, legend=True, scheme='FisherJenks', k=9, cmap='YlOrRd',
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
         ax.set_title("Zanzibar: Population Density (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
@@ -63,23 +73,22 @@ def perform_analysis(gpkg_path, output_dir):
     print("Generating modern ward size histogram...")
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Filter out 0 area if any
-    areas = gdf[gdf['area_sqkm'] > 0]['area_sqkm']
+    # Filter out 0 area and apply user request: min at 1
+    areas = gdf[gdf['area_sqkm'] >= 1.0]['area_sqkm']
     
-    # Create log bins
-    log_bins = np.logspace(np.log10(areas.min()), np.log10(areas.max()), 50)
+    # Create log bins starting from 1
+    log_bins = np.logspace(np.log10(1.0), np.log10(areas.max()), 50)
     
     ax.hist(areas, bins=log_bins, color='#3498db', edgecolor='white', alpha=0.8)
     ax.set_xscale('log')
+    ax.set_xlim(left=1.0) # Explicitly set x-axis floor at 1.0
     
-    ax.set_title("Distribution of ward areas in Tanzania (2022)", fontsize=16, fontweight='bold', pad=20)
+    ax.set_title("Distribution of ward areas in Tanzania (≥ 1 km²)", fontsize=16, fontweight='bold', pad=20)
     ax.set_xlabel("Area (sq km, Log Scale)", fontsize=12)
-    ax.set_ylabel("Frequency (Linear)", fontsize=12)
+    ax.set_ylabel("Frequency (Number of Wards)", fontsize=12)
     
-    # Add a grid for readability
     ax.grid(True, which="both", ls="-", alpha=0.2)
     
-    # Add some descriptive text
     median_val = areas.median()
     ax.axvline(median_val, color='#e74c3c', linestyle='--', label=f'Median: {median_val:.1f} km²')
     ax.legend()
@@ -110,7 +119,6 @@ def perform_analysis(gpkg_path, output_dir):
     print(f"Stats updated at {stats_path}")
 
 if __name__ == "__main__":
-    # Internal paths relative to project root
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     ROOT_DIR = os.path.dirname(SCRIPT_DIR)
     
