@@ -46,35 +46,58 @@ def perform_analysis(gpkg_path, output_dir):
     plt.close()
 
     # 2. Zoom - Dar es Salaam
-    print("Generating Dar es Salaam zoom map...")
-    dar_gdf = gdf[gdf['reg_name'].str.contains('Dar es Salaam', case=False, na=False)].copy()
-    if not dar_gdf.empty:
+    print("Generating Dar es Salaam zoom map with context...")
+    dar_extent = gdf[gdf['reg_name'].str.contains('Dar es Salaam', case=False, na=False)]
+    if not dar_extent.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+        ax.set_facecolor('#ffffff')
+        
+        # Calculate bounds with 5% padding
+        minx, miny, maxx, maxy = dar_extent.total_bounds
+        padx = (maxx - minx) * 0.05
+        pady = (maxy - miny) * 0.05
+        
         dar_breaks = [500, 1500, 3000, 6000, 10000, 15000, 20000, 25000, 30000, 35000]
-        dar_gdf.plot(column='density', ax=ax, legend=True, 
+        
+        # Plot full dataset, but axis limits will crop it
+        gdf.plot(column='density', ax=ax, legend=True, 
                 scheme='UserDefined', classification_kwds={'bins': dar_breaks},
                 cmap='YlOrRd',
                 edgecolor='black', linewidth=0.15,
                 missing_kwds={"color": "white", "edgecolor": "black", "label": "0 / No Data"},
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
-        ax.set_title("Dar es Salaam: Population Density (2022)", fontsize=16, fontweight='bold')
+        
+        ax.set_xlim(minx - padx, maxx + padx)
+        ax.set_ylim(miny - pady, maxy + pady)
+        ax.set_title("Dar es Salaam: Population Density & Context (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
         plt.savefig(os.path.join(output_dir, "zoom_dar_density.png"), dpi=300, bbox_inches='tight')
         plt.close()
 
     # 3. Zoom - Zanzibar
-    print("Generating Zanzibar zoom map...")
-    znz_gdf = gdf[gdf['reg_name'].str.contains('Unguja|Pemba|Zanzibar', case=False, na=False)].copy()
-    if not znz_gdf.empty:
+    print("Generating Zanzibar zoom map with context...")
+    znz_extent = gdf[gdf['reg_name'].str.contains('Unguja|Pemba|Zanzibar', case=False, na=False)]
+    if not znz_extent.empty:
         fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+        ax.set_facecolor('#ffffff')
+        
+        # Calculate bounds with 10% padding (islands need more air)
+        minx, miny, maxx, maxy = znz_extent.total_bounds
+        padx = (maxx - minx) * 0.1
+        pady = (maxy - miny) * 0.1
+        
         znz_breaks = [50, 150, 300, 500, 750, 1000, 1500, 2000, 3000, 4000]
-        znz_gdf.plot(column='density', ax=ax, legend=True, 
+        
+        gdf.plot(column='density', ax=ax, legend=True, 
                 scheme='UserDefined', classification_kwds={'bins': znz_breaks},
                 cmap='YlOrRd',
                 edgecolor='black', linewidth=0.15,
                 missing_kwds={"color": "white", "edgecolor": "black", "label": "0 / No Data"},
                 legend_kwds={'title': "Density", 'loc': 'lower right', 'fmt': "{:.0f}"})
-        ax.set_title("Zanzibar: Population Density (2022)", fontsize=16, fontweight='bold')
+        
+        ax.set_xlim(minx - padx, maxx + padx)
+        ax.set_ylim(miny - pady, maxy + pady)
+        ax.set_title("Zanzibar: Population Density & Context (2022)", fontsize=16, fontweight='bold')
         ax.axis('off')
         plt.savefig(os.path.join(output_dir, "zoom_zanzibar_density.png"), dpi=300, bbox_inches='tight')
         plt.close()
